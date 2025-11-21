@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工作日记 - WorkFlow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.2/marked.min.js"></script>
+    <script src="https://unpkg.com/splitting@1.0.6/dist/splitting.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/splitting@1.0.6/dist/splitting.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+            min-height: 100vh;
+        }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .gradient-text {
+            background: linear-gradient(135deg, #0891b2, #f97316);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .editor-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            height: 500px;
+        }
+        .editor-panel, .preview-panel {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            overflow-y: auto;
+        }
+        .editor-textarea {
+            background: transparent;
+            border: none;
+            outline: none;
+            resize: none;
+            width: 100%;
+            height: 100%;
+            color: white;
+            font-family: 'Inter', monospace;
+            line-height: 1.6;
+        }
+        .preview-content {
+            color: white;
+            line-height: 1.6;
+        }
+        .preview-content h1, .preview-content h2, .preview-content h3 {
+            color: #0891b2;
+            margin-bottom: 0.5rem;
+        }
+        .preview-content p {
+            margin-bottom: 1rem;
+        }
+        .preview-content code {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .preview-content pre {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin: 1rem 0;
+        }
+        .journal-entry {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .journal-entry:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+        .tag {
+            background: linear-gradient(135deg, rgba(8, 145, 178, 0.2), rgba(249, 115, 22, 0.2));
+            border: 1px solid rgba(8, 145, 178, 0.3);
+        }
+        .nav-link {
+            position: relative;
+            overflow: hidden;
+        }
+        .nav-link::before {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: -100%;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, #0891b2, #f97316);
+            transition: left 0.3s ease;
+        }
+        .nav-link:hover::before {
+            left: 0;
+        }
+        .search-highlight {
+            background: rgba(249, 115, 22, 0.3);
+            padding: 0.1rem 0.2rem;
+            border-radius: 0.25rem;
+        }
+        .toolbar-button {
+            transition: all 0.2s ease;
+        }
+        .toolbar-button:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body class="text-white">
+    <!-- Navigation -->
+    <nav class="fixed top-0 left-0 right-0 z-50 glass-effect">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center space-x-8">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 bg-gradient-to-r from-cyan-500 to-orange-500 rounded-lg flex items-center justify-center">
+                            <span class="text-white font-bold text-sm">W</span>
+                        </div>
+                        <span class="text-xl font-bold gradient-text">WorkFlow</span>
+                    </div>
+                    <div class="hidden md:flex space-x-6">
+                        <a href="index.html" class="nav-link text-gray-300 hover:text-white px-3 py-2">仪表板</a>
+                        <a href="projects.html" class="nav-link text-gray-300 hover:text-white px-3 py-2">项目管理</a>
+                        <a href="journal.html" class="nav-link text-cyan-400 font-medium px-3 py-2">工作日记</a>
+                        <a href="planner.html" class="nav-link text-gray-300 hover:text-white px-3 py-2">每日计划</a>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button onclick="showModal('journalModal')" class="bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-4 py-2 rounded-lg hover:from-cyan-600 hover:to-blue-600 transition-all">
+                        新建日记
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Header Section -->
+    <section class="pt-24 pb-8 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto">
+            <div class="flex items-center justify-between mb-8">
+                <div>
+                    <h1 class="text-4xl font-bold gradient-text mb-2">工作日记</h1>
+                    <p class="text-gray-300">记录工作点滴，回顾成长历程，分享心得体会</p>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="relative">
+                        <input type="text" id="searchInput" placeholder="搜索日记..." 
+                               class="pl-10 pr-4 py-2 bg-white/10 rounded-lg border border-white/20 focus:border-cyan-400 focus:outline-none w-64">
+                        <svg class="w-5 h-5 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="glass-effect rounded-xl p-6 text-center">
+                    <div class="text-2xl font-bold text-cyan-400" id="totalEntries">0</div>
+                    <div class="text-gray-400 text-sm">总日记数</div>
+                </div>
+                <div class="glass-effect rounded-xl p-6 text-center">
+                    <div class="text-2xl font-bold text-green-400" id="thisMonthEntries">0</div>
+                    <div class="text-gray-400 text-sm">本月记录</div>
+                </div>
+                <div class="glass-effect rounded-xl p-6 text-center">
+                    <div class="text-2xl font-bold text-orange-400" id="totalTags">0</div>
+                    <div class="text-gray-400 text-sm">标签数量</div>
+                </div>
+                <div class="glass-effect rounded-xl p-6 text-center">
+                    <div class="text-2xl font-bold text-purple-400" id="wordsCount">0</div>
+                    <div class="text-gray-400 text-sm">总字数</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Content -->
+    <section class="px-4 sm:px-6 lg:px-8 pb-12">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                
+                <!-- Left Sidebar - Tags & Filters -->
+                <div class="lg:col-span-1 space-y-6">
+                    <!-- Filter by Date -->
+                    <div class="glass-effect rounded-xl p-6">
+                        <h3 class="text-lg font-semibold mb-4">时间筛选</h3>
+                        <div class="space-y-3">
+                            <button onclick="filterByDate('all')" class="filter-btn w-full text-left px-3 py-2 rounded-lg bg-cyan-500/20 text-cyan-400">
+                                全部
+                            </button>
+                            <button onclick="filterByDate('today')" class="filter-btn w-full text-left px-3 py-2 rounded-lg bg-white/10 text-gray-300 hover:bg-white/20">
+                                今天
+                            </button>
+                            <button onclick="filterByDate('week')" class="filter-btn w-full text-left px-3 py-2 rounded-lg bg-white/10 text-gray-300 hover:bg-white/20">
+                                本周
+                            </button>
+                            <button onclick="filterByDate('month')" class="filter-btn w-full text-left px-3 py-2 rounded-lg bg-white/10 text-gray-300 hover:bg-white/20">
+                                本月
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Tags -->
+                    <div class="glass-effect rounded-xl p-6">
+                        <h3 class="text-lg font-semibold mb-4">标签云</h3>
+                        <div id="tagsContainer" class="flex flex-wrap gap-2">
+                            <!-- Tags will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Content Area -->
+                <div class="lg:col-span-3">
+                    <!-- Journal Entries -->
+                    <div id="journalEntries" class="space-y-6">
+                        <!-- Entries will be loaded here -->
+                    </div>
+
+                    <!-- Empty State -->
+                    <div id="emptyState" class="text-center py-12 hidden">
+                        <svg class="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                        </svg>
+                        <h3 class="text-xl font-semibold text-gray-300 mb-2">还没有日记</h3>
+                        <p class="text-gray-400 mb-6">开始记录您的工作点滴吧</p>
+                        <button onclick="showModal('journalModal')" class="bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-6 py-3 rounded-lg hover:from-cyan-600 hover:to-blue-600 transition-all">
+                            写第一篇日记
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Journal Modal -->
+    <div id="journalModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="glass-effect rounded-xl p-6 w-full max-w-6xl max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-semibold">新建日记</h3>
+                    <button onclick="hideModal('journalModal')" class="text-gray-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <form id="journalForm" class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">日记标题</label>
+                            <input type="text" id="journalTitle" class="w-full px-4 py-2 bg-white/10 rounded-lg border border-white/20 focus:border-cyan-400 focus:outline-none" placeholder="输入日记标题">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">标签</label>
+                            <input type="text" id="journalTags" class="w-full px-4 py-2 bg-white/10 rounded-lg border border-white/20 focus:border-cyan-400 focus:outline-none" placeholder="用逗号分隔多个标签">
+                        </div>
+                    </div>
+
+                    <!-- Editor Toolbar -->
+                    <div class="flex items-center space-x-2 p-3 bg-white/5 rounded-lg border border-white/10">
+                        <button type="button" onclick="insertMarkdown('**', '**')" class="toolbar-button p-2 rounded hover:bg-white/10" title="粗体">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M5 3a1 1 0 000 2h.5v10H5a1 1 0 100 2h6a1 1 0 100-2h-.5V5H11a1 1 0 100-2H5zM8 5h2v10H8V5z"></path>
+                            </svg>
+                        </button>
+                        <button type="button" onclick="insertMarkdown('*', '*')" class="toolbar-button p-2 rounded hover:bg-white/10" title="斜体">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M8 1a1 1 0 000 2h1.5L7.8 15H6a1 1 0 100 2h6a1 1 0 100-2h-1.5l1.7-12H14a1 1 0 100-2H8z"></path>
+                            </svg>
+                        </button>
+                        <button type="button" onclick="insertMarkdown('# ', '')" class="toolbar-button p-2 rounded hover:bg-white/10" title="标题">
+                            H
+                        </button>
+                        <button type="button" onclick="insertMarkdown('[', '](url)')" class="toolbar-button p-2 rounded hover:bg-white/10" title="链接">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
+                            </svg>
+                        </button>
+                        <button type="button" onclick="insertMarkdown('```\n', '\n```')" class="toolbar-button p-2 rounded hover:bg-white/10" title="代码块">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                            </svg>
+                        </button>
+                        <div class="border-l border-white/20 h-6 mx-2"></div>
+                        <button type="button" onclick="insertMarkdown('- ', '')" class="toolbar-button p-2 rounded hover:bg-white/10" title="列表">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- Editor -->
+                    <div class="editor-container">
+                        <div class="editor-panel">
+                            <textarea id="journalContent" class="editor-textarea" placeholder="开始编写您的日记内容...
+
+支持 Markdown 格式：
+- **粗体文本**
+- *斜体文本*
+- # 标题
+- [链接文本](URL)
+- ```代码```"></textarea>
+                        </div>
+                        <div class="preview-panel">
+                            <div class="text-sm text-gray-400 mb-3">实时预览</div>
+                            <div id="previewContent" class="preview-content">
+                                <p class="text-gray-400">开始编写您的日记内容...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex space-x-3 pt-4">
+                        <button type="submit" class="flex-1 bg-gradient-to-r from-cyan-500 to-blue-500 text-white py-3 px-6 rounded-lg hover:from-cyan-600 hover:to-blue-600 transition-all">
+                            保存日记
+                        </button>
+                        <button type="button" onclick="hideModal('journalModal')" class="flex-1 bg-white/10 text-white py-3 px-6 rounded-lg hover:bg-white/20 transition-all">
+                            取消
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="border-t border-white/10 py-8 mt-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <p class="text-gray-400">© 2024 WorkFlow. 个人工作助手平台 - 让工作更高效</p>
+        </div>
+    </footer>
+
+    <script src="main.js"></script>
+    <script>
+        let currentFilter = 'all';
+        let currentSearchTerm = '';
+        let currentTagFilter = '';
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            loadJournalEntries();
+            updateStats();
+            loadTags();
+            initializeEditor();
+        });
+
+        function initializeEditor() {
+            const textarea = document.getElementById('journalContent');
+            const preview = document.getElementById('previewContent');
+            
+            textarea.addEventListener('input', function() {
+                const markdownText = this.value;
+                if (markdownText.trim()) {
+                    preview.innerHTML = marked.parse(markdownText);
+                } else {
+                    preview.innerHTML = '<p class="text-gray-400">开始编写您的日记内容...</p>';
+                }
+            });
+        }
+
+        function insertMarkdown(before, after) {
+            const textarea = document.getElementById('journalContent');
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const selectedText = textarea.value.substring(start, end);
+            const replacement = before + selectedText + after;
+            
+            textarea.value = textarea.value.substring(0, start) + replacement + textarea.value.substring(end);
+            textarea.focus();
+            textarea.setSelectionRange(start + before.length, start + replacement.length - after.length);
+            
+            // Trigger input event to update preview
+            textarea.dispatchEvent(new Event('input'));
+        }
+
+        function loadJournalEntries() {
+            const journals = JSON.parse(localStorage.getItem('journals') || '[]');
+            const container = document.getElementById('journalEntries');
+            const emptyState = document.getElementById('emptyState');
+            
+            let filteredJournals = journals;
+            
+            // Apply filters
+            if (currentFilter !== 'all') {
+                filteredJournals = filterByDateRange(filteredJournals, currentFilter);
+            }
+            
+            if (currentSearchTerm) {
+                filteredJournals = filterBySearch(filteredJournals, currentSearchTerm);
+            }
+            
+            if (currentTagFilter) {
+                filteredJournals = filterByTag(filteredJournals, currentTagFilter);
+            }
+            
+            // Sort by date (newest first)
+            filteredJournals.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            
+            if (filteredJournals.length === 0) {
+                container.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            
+            emptyState.classList.add('hidden');
+            container.innerHTML = filteredJournals.map(journal => createJournalEntry(journal)).join('');
+        }
+
+        function createJournalEntry(journal) {
+            const preview = journal.content.length > 200 ? journal.content.substring(0, 200) + '...' : journal.content;
+            const formattedDate = new Date(journal.createdAt).toLocaleDateString('zh-CN', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            
+            return `
+                <div class="journal-entry glass-effect rounded-xl p-6" onclick="viewJournal('${journal.id}')">
+                    <div class="flex items-start justify-between mb-4">
+                        <div>
+                            <h3 class="text-xl font-semibold text-cyan-400 mb-2">${journal.title}</h3>
+                            <p class="text-sm text-gray-400">${formattedDate}</p>
+                        </div>
+                        <button onclick="deleteJournal('${journal.id}'); event.stopPropagation();" class="text-gray-400 hover:text-red-400 transition-colors">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    <div class="preview-content mb-4">
+                        ${marked.parse(preview)}
+                    </div>
+                    
+                    ${journal.tags && journal.tags.length > 0 ? `
+                        <div class="flex flex-wrap gap-2">
+                            ${journal.tags.map(tag => `
+                                <span class="tag px-3 py-1 text-xs rounded-full cursor-pointer" onclick="filterByTag('${tag}'); event.stopPropagation();">
+                                    #${tag}
+                                </span>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        function filterByDate(filter) {
+            currentFilter = filter;
+            
+            // Update button styles
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.className = 'filter-btn w-full text-left px-3 py-2 rounded-lg bg-white/10 text-gray-300 hover:bg-white/20';
+            });
+            event.target.className = 'filter-btn w-full text-left px-3 py-2 rounded-lg bg-cyan-500/20 text-cyan-400';
+            
+            loadJournalEntries();
+        }
+
+        function filterByDateRange(journals, filter) {
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const thisWeek = new Date(today.getTime() - (today.getDay() * 24 * 60 * 60 * 1000));
+            const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+            
+            return journals.filter(journal => {
+                const journalDate = new Date(journal.createdAt);
+                
+                switch (filter) {
+                    case 'today':
+                        return journalDate >= today;
+                    case 'week':
+                        return journalDate >= thisWeek;
+                    case 'month':
+                        return journalDate >= thisMonth;
+                    default:
+                        return true;
+                }
+            });
+        }
+
+        function filterBySearch(journals, searchTerm) {
+            const term = searchTerm.toLowerCase();
+            return journals.filter(journal => 
+                journal.title.toLowerCase().includes(term) ||
+                journal.content.toLowerCase().includes(term) ||
+                (journal.tags && journal.tags.some(tag => tag.toLowerCase().includes(term)))
+            );
+        }
+
+        function filterByTag(journals, tag) {
+            return journals.filter(journal => 
+                journal.tags && journal.tags.includes(tag)
+            );
+        }
+
+        function loadTags() {
+            const journals = JSON.parse(localStorage.getItem('journals') || '[]');
+            const allTags = journals.flatMap(journal => journal.tags || []);
+            const uniqueTags = [...new Set(allTags)];
+            
+            const container = document.getElementById('tagsContainer');
+            container.innerHTML = uniqueTags.map(tag => `
+                <span class="tag px-3 py-1 text-xs rounded-full cursor-pointer hover:bg-cyan-500/30 transition-colors" 
+                      onclick="setTagFilter('${tag}')">
+                    #${tag}
+                </span>
+            `).join('');
+        }
+
+        function setTagFilter(tag) {
+            currentTagFilter = currentTagFilter === tag ? '' : tag;
+            loadJournalEntries();
+        }
+
+        function updateStats() {
+            const journals = JSON.parse(localStorage.getItem('journals') || '[]');
+            const now = new Date();
+            const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+            
+            const thisMonthEntries = journals.filter(journal => 
+                new Date(journal.createdAt) >= thisMonth
+            ).length;
+            
+            const allTags = journals.flatMap(journal => journal.tags || []);
+            const uniqueTags = [...new Set(allTags)];
+            
+            const totalWords = journals.reduce((sum, journal) => {
+                return sum + (journal.content || '').length;
+            }, 0);
+            
+            document.getElementById('totalEntries').textContent = journals.length;
+            document.getElementById('thisMonthEntries').textContent = thisMonthEntries;
+            document.getElementById('totalTags').textContent = uniqueTags.length;
+            document.getElementById('wordsCount').textContent = totalWords;
+        }
+
+        function viewJournal(journalId) {
+            const journals = JSON.parse(localStorage.getItem('journals') || '[]');
+            const journal = journals.find(j => j.id === journalId);
+            
+            if (journal) {
+                // You can implement a detailed view modal here
+                alert(`查看日记: ${journal.title}\n\n内容:\n${journal.content}`);
+            }
+        }
+
+        function deleteJournal(journalId) {
+            if (confirm('确定要删除这篇日记吗？')) {
+                const journals = JSON.parse(localStorage.getItem('journals') || '[]');
+                const filteredJournals = journals.filter(j => j.id !== journalId);
+                localStorage.setItem('journals', JSON.stringify(filteredJournals));
+                
+                loadJournalEntries();
+                updateStats();
+                loadTags();
+                showNotification('日记已删除');
+            }
+        }
+
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            currentSearchTerm = e.target.value;
+            loadJournalEntries();
+        });
+
+        // Journal form submission
+        document.getElementById('journalForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const title = document.getElementById('journalTitle').value;
+            const content = document.getElementById('journalContent').value;
+            const tagsInput = document.getElementById('journalTags').value;
+            
+            if (!title.trim() || !content.trim()) {
+                alert('请填写标题和内容');
+                return;
+            }
+            
+            const tags = tagsInput ? tagsInput.split(',').map(tag => tag.trim()).filter(tag => tag) : [];
+            
+            const journal = {
+                id: Date.now().toString(),
+                title: title.trim(),
+                content: content.trim(),
+                tags: tags,
+                createdAt: new Date().toISOString()
+            };
+            
+            // Ensure journals array exists
+            if (!localStorage.getItem('journals')) {
+                localStorage.setItem('journals', JSON.stringify([]));
+            }
+            
+            const journals = JSON.parse(localStorage.getItem('journals') || '[]');
+            journals.push(journal);
+            localStorage.setItem('journals', JSON.stringify(journals));
+            
+            this.reset();
+            document.getElementById('previewContent').innerHTML = '<p class="text-gray-400">开始编写您的日记内容...</p>';
+            hideModal('journalModal');
+            
+            loadJournalEntries();
+            updateStats();
+            loadTags();
+            showNotification('日记保存成功！');
+        });
+
+        // Initialize sample data
+        if (!localStorage.getItem('journals')) {
+            const sampleJournals = [
+                {
+                    id: '1',
+                    title: '项目启动会议记录',
+                    content: '今天我们召开了新项目启动会议，讨论了项目的目标和时间线。\n\n**主要议题：**\n- 项目目标确认\n- 团队分工安排\n- 时间节点规划\n\n**下一步行动：**\n1. 完成需求分析\n2. 制定详细计划\n3. 开始原型设计',
+                    tags: ['会议', '项目', '计划'],
+                    createdAt: new Date(Date.now() - 86400000).toISOString() // Yesterday
+                },
+                {
+                    id: '2',
+                    title: '技术学习笔记',
+                    content: '今天学习了新的前端框架，感觉很有收获。\n\n*学习了以下概念：*\n- 组件化开发\n- 状态管理\n- 路由配置\n\n```javascript\n// 示例代码\nconst component = () => {\n  return <div>Hello World</div>;\n};\n```',
+                    tags: ['技术', '学习', '前端'],
+                    createdAt: new Date(Date.now() - 172800000).toISOString() // 2 days ago
+                }
+            ];
+            localStorage.setItem('journals', JSON.stringify(sampleJournals));
+        }
+
+        // Modal functions
+        function showModal(modalId) {
+            document.getElementById(modalId).classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function hideModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }
+
+        function showNotification(message) {
+            const notification = document.createElement('div');
+            notification.className = 'fixed top-20 right-4 bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 transform translate-x-full transition-transform';
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.classList.remove('translate-x-full');
+            }, 100);
+            
+            setTimeout(() => {
+                notification.classList.add('translate-x-full');
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
+        }
+
+        // Close modal when clicking outside
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('fixed') && e.target.classList.contains('inset-0')) {
+                const modals = document.querySelectorAll('[id$="Modal"]');
+                modals.forEach(modal => {
+                    if (!modal.classList.contains('hidden')) {
+                        hideModal(modal.id);
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
