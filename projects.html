@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>项目管理 - WorkFlow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+    <script src="https://unpkg.com/splitting@1.0.6/dist/splitting.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/splitting@1.0.6/dist/splitting.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+            min-height: 100vh;
+        }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .gradient-text {
+            background: linear-gradient(135deg, #0891b2, #f97316);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .kanban-column {
+            min-height: 500px;
+        }
+        .task-card {
+            transition: all 0.3s ease;
+            cursor: grab;
+        }
+        .task-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+        .task-card.dragging {
+            opacity: 0.5;
+            transform: rotate(5deg);
+        }
+        .kanban-column.drag-over {
+            background: rgba(8, 145, 178, 0.1);
+            border-color: rgba(8, 145, 178, 0.3);
+        }
+        .priority-high { border-left: 4px solid #dc2626; }
+        .priority-medium { border-left: 4px solid #f97316; }
+        .priority-low { border-left: 4px solid #059669; }
+        .nav-link {
+            position: relative;
+            overflow: hidden;
+        }
+        .nav-link::before {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: -100%;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, #0891b2, #f97316);
+            transition: left 0.3s ease;
+        }
+        .nav-link:hover::before {
+            left: 0;
+        }
+        .project-card {
+            background: linear-gradient(135deg, rgba(8, 145, 178, 0.1), rgba(249, 115, 22, 0.1));
+            transition: all 0.3s ease;
+        }
+        .project-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+        .progress-bar {
+            background: linear-gradient(90deg, #0891b2, #f97316);
+            transition: width 0.5s ease;
+        }
+    </style>
+</head>
+<body class="text-white">
+    <!-- Navigation -->
+    <nav class="fixed top-0 left-0 right-0 z-50 glass-effect">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center space-x-8">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 bg-gradient-to-r from-cyan-500 to-orange-500 rounded-lg flex items-center justify-center">
+                            <span class="text-white font-bold text-sm">W</span>
+                        </div>
+                        <span class="text-xl font-bold gradient-text">WorkFlow</span>
+                    </div>
+                    <div class="hidden md:flex space-x-6">
+                        <a href="index.html" class="nav-link text-gray-300 hover:text-white px-3 py-2">仪表板</a>
+                        <a href="projects.html" class="nav-link text-cyan-400 font-medium px-3 py-2">项目管理</a>
+                        <a href="journal.html" class="nav-link text-gray-300 hover:text-white px-3 py-2">工作日记</a>
+                        <a href="planner.html" class="nav-link text-gray-300 hover:text-white px-3 py-2">每日计划</a>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button onclick="showModal('projectModal')" class="bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-4 py-2 rounded-lg hover:from-cyan-600 hover:to-blue-600 transition-all">
+                        新建项目
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Header Section -->
+    <section class="pt-24 pb-8 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto">
+            <div class="flex items-center justify-between mb-8">
+                <div>
+                    <h1 class="text-4xl font-bold gradient-text mb-2">项目管理</h1>
+                    <p class="text-gray-300">管理您的项目进度，跟踪任务状态，提高团队协作效率</p>
+                </div>
+                <div class="flex space-x-3">
+                    <button onclick="toggleView('board')" id="boardViewBtn" class="px-4 py-2 bg-cyan-500/20 text-cyan-400 rounded-lg border border-cyan-500/30">
+                        看板视图
+                    </button>
+                    <button onclick="toggleView('list')" id="listViewBtn" class="px-4 py-2 bg-white/10 text-gray-300 rounded-lg border border-white/20 hover:bg-white/20">
+                        列表视图
+                    </button>
+                </div>
+            </div>
+
+            <!-- Project Stats -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="glass-effect rounded-xl p-6 text-center">
+                    <div class="text-2xl font-bold text-cyan-400" id="totalProjects">8</div>
+                    <div class="text-gray-400 text-sm">总项目数</div>
+                </div>
+                <div class="glass-effect rounded-xl p-6 text-center">
+                    <div class="text-2xl font-bold text-orange-400" id="activeProjects">5</div>
+                    <div class="text-gray-400 text-sm">进行中</div>
+                </div>
+                <div class="glass-effect rounded-xl p-6 text-center">
+                    <div class="text-2xl font-bold text-green-400" id="completedProjects">3</div>
+                    <div class="text-gray-400 text-sm">已完成</div>
+                </div>
+                <div class="glass-effect rounded-xl p-6 text-center">
+                    <div class="text-2xl font-bold text-purple-400" id="totalTasks">42</div>
+                    <div class="text-gray-400 text-sm">总任务数</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Board View -->
+    <section id="boardView" class="px-4 sm:px-6 lg:px-8 pb-12">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- To Do Column -->
+                <div class="kanban-column glass-effect rounded-xl p-6" data-status="todo">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-lg font-semibold text-gray-300">待办事项</h3>
+                        <span class="bg-gray-500/20 text-gray-300 px-2 py-1 rounded-full text-xs" id="todoCount">0</span>
+                    </div>
+                    <div id="todoTasks" class="space-y-4">
+                        <!-- Tasks will be loaded here -->
+                    </div>
+                    <button onclick="showModal('taskModal')" class="w-full mt-4 p-3 border-2 border-dashed border-gray-600 rounded-lg text-gray-400 hover:border-cyan-400 hover:text-cyan-400 transition-colors">
+                        + 添加任务
+                    </button>
+                </div>
+
+                <!-- In Progress Column -->
+                <div class="kanban-column glass-effect rounded-xl p-6" data-status="inprogress">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-lg font-semibold text-orange-400">进行中</h3>
+                        <span class="bg-orange-500/20 text-orange-400 px-2 py-1 rounded-full text-xs" id="inprogressCount">0</span>
+                    </div>
+                    <div id="inprogressTasks" class="space-y-4">
+                        <!-- Tasks will be loaded here -->
+                    </div>
+                    <button onclick="showModal('taskModal')" class="w-full mt-4 p-3 border-2 border-dashed border-gray-600 rounded-lg text-gray-400 hover:border-orange-400 hover:text-orange-400 transition-colors">
+                        + 添加任务
+                    </button>
+                </div>
+
+                <!-- Done Column -->
+                <div class="kanban-column glass-effect rounded-xl p-6" data-status="done">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-lg font-semibold text-green-400">已完成</h3>
+                        <span class="bg-green-500/20 text-green-400 px-2 py-1 rounded-full text-xs" id="doneCount">0</span>
+                    </div>
+                    <div id="doneTasks" class="space-y-4">
+                        <!-- Tasks will be loaded here -->
+                    </div>
+                    <button onclick="showModal('taskModal')" class="w-full mt-4 p-3 border-2 border-dashed border-gray-600 rounded-lg text-gray-400 hover:border-green-400 hover:text-green-400 transition-colors">
+                        + 添加任务
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- List View -->
+    <section id="listView" class="px-4 sm:px-6 lg:px-8 pb-12 hidden">
+        <div class="max-w-7xl mx-auto">
+            <div class="glass-effect rounded-xl overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-white/10">
+                            <tr>
+                                <th class="px-6 py-4 text-left text-sm font-medium text-gray-300">任务名称</th>
+                                <th class="px-6 py-4 text-left text-sm font-medium text-gray-300">状态</th>
+                                <th class="px-6 py-4 text-left text-sm font-medium text-gray-300">优先级</th>
+                                <th class="px-6 py-4 text-left text-sm font-medium text-gray-300">截止日期</th>
+                                <th class="px-6 py-4 text-left text-sm font-medium text-gray-300">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="taskList" class="divide-y divide-white/10">
+                            <!-- Tasks will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Project Modal -->
+    <div id="projectModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="glass-effect rounded-xl p-6 w-full max-w-md">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-semibold">新建项目</h3>
+                    <button onclick="hideModal('projectModal')" class="text-gray-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <form id="projectForm" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">项目名称</label>
+                        <input type="text" id="projectName" class="w-full px-4 py-2 bg-white/10 rounded-lg border border-white/20 focus:border-cyan-400 focus:outline-none" placeholder="输入项目名称">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">项目描述</label>
+                        <textarea id="projectDescription" rows="3" class="w-full px-4 py-2 bg-white/10 rounded-lg border border-white/20 focus:border-cyan-400 focus:outline-none" placeholder="项目描述"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">截止日期</label>
+                        <input type="date" id="projectDueDate" class="w-full px-4 py-2 bg-white/10 rounded-lg border border-white/20 focus:border-cyan-400 focus:outline-none">
+                    </div>
+                    <div class="flex space-x-3 pt-4">
+                        <button type="submit" class="flex-1 bg-gradient-to-r from-cyan-500 to-blue-500 text-white py-2 px-4 rounded-lg hover:from-cyan-600 hover:to-blue-600 transition-all">
+                            创建项目
+                        </button>
+                        <button type="button" onclick="hideModal('projectModal')" class="flex-1 bg-white/10 text-white py-2 px-4 rounded-lg hover:bg-white/20 transition-all">
+                            取消
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task Modal -->
+    <div id="taskModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="glass-effect rounded-xl p-6 w-full max-w-md">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-semibold">新建任务</h3>
+                    <button onclick="hideModal('taskModal')" class="text-gray-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <form id="taskForm" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">任务标题</label>
+                        <input type="text" id="taskTitle" class="w-full px-4 py-2 bg-white/10 rounded-lg border border-white/20 focus:border-cyan-400 focus:outline-none" placeholder="输入任务标题">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">所属项目</label>
+                        <select id="taskProject" class="w-full px-4 py-2 bg-white/10 rounded-lg border border-white/20 focus:border-cyan-400 focus:outline-none">
+                            <option value="">选择项目</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">优先级</label>
+                        <select id="taskPriority" class="w-full px-4 py-2 bg-white/10 rounded-lg border border-white/20 focus:border-cyan-400 focus:outline-none">
+                            <option value="low">低</option>
+                            <option value="medium" selected>中</option>
+                            <option value="high">高</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">截止日期</label>
+                        <input type="date" id="taskDueDate" class="w-full px-4 py-2 bg-white/10 rounded-lg border border-white/20 focus:border-cyan-400 focus:outline-none">
+                    </div>
+                    <div class="flex space-x-3 pt-4">
+                        <button type="submit" class="flex-1 bg-gradient-to-r from-cyan-500 to-blue-500 text-white py-2 px-4 rounded-lg hover:from-cyan-600 hover:to-blue-600 transition-all">
+                            创建任务
+                        </button>
+                        <button type="button" onclick="hideModal('taskModal')" class="flex-1 bg-white/10 text-white py-2 px-4 rounded-lg hover:bg-white/20 transition-all">
+                            取消
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="border-t border-white/10 py-8 mt-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <p class="text-gray-400">© 2024 WorkFlow. 个人工作助手平台 - 让工作更高效</p>
+        </div>
+    </footer>
+
+    <script src="main.js"></script>
+    <script>
+        let currentView = 'board';
+        let draggedTask = null;
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            loadProjects();
+            loadTasks();
+            updateStats();
+            initializeDragAndDrop();
+            loadProjectsForTask();
+        });
+
+        function toggleView(view) {
+            currentView = view;
+            
+            // Update buttons
+            document.getElementById('boardViewBtn').className = view === 'board' 
+                ? 'px-4 py-2 bg-cyan-500/20 text-cyan-400 rounded-lg border border-cyan-500/30'
+                : 'px-4 py-2 bg-white/10 text-gray-300 rounded-lg border border-white/20 hover:bg-white/20';
+            
+            document.getElementById('listViewBtn').className = view === 'list' 
+                ? 'px-4 py-2 bg-cyan-500/20 text-cyan-400 rounded-lg border border-cyan-500/30'
+                : 'px-4 py-2 bg-white/10 text-gray-300 rounded-lg border border-white/20 hover:bg-white/20';
+            
+            // Show/hide views
+            document.getElementById('boardView').classList.toggle('hidden', view !== 'board');
+            document.getElementById('listView').classList.toggle('hidden', view !== 'list');
+            
+            if (view === 'list') {
+                loadTaskList();
+            }
+        }
+
+        function loadProjects() {
+            const projects = JSON.parse(localStorage.getItem('projects') || '[]');
+            // Projects are used in task creation and stats
+        }
+
+        function loadProjectsForTask() {
+            const projects = JSON.parse(localStorage.getItem('projects') || '[]');
+            const select = document.getElementById('taskProject');
+            
+            // Clear existing options except the first one
+            select.innerHTML = '<option value="">选择项目</option>';
+            
+            projects.forEach(project => {
+                const option = document.createElement('option');
+                option.value = project.id;
+                option.textContent = project.name;
+                select.appendChild(option);
+            });
+        }
+
+        function loadTasks() {
+            const tasks = JSON.parse(localStorage.getItem('tasks') || '[]');
+            
+            // Clear all columns
+            document.getElementById('todoTasks').innerHTML = '';
+            document.getElementById('inprogressTasks').innerHTML = '';
+            document.getElementById('doneTasks').innerHTML = '';
+            
+            // Group tasks by status
+            const tasksByStatus = {
+                todo: tasks.filter(task => !task.status || task.status === 'todo'),
+                inprogress: tasks.filter(task => task.status === 'inprogress'),
+                done: tasks.filter(task => task.status === 'done')
+            };
+            
+            // Render tasks in each column
+            Object.keys(tasksByStatus).forEach(status => {
+                const container = document.getElementById(status + 'Tasks');
+                const tasks = tasksByStatus[status];
+                
+                document.getElementById(status + 'Count').textContent = tasks.length;
+                
+                container.innerHTML = tasks.map(task => createTaskCard(task)).join('');
+            });
+        }
+
+        function createTaskCard(task) {
+            const priorityClass = `priority-${task.priority}`;
+            const project = getProjectById(task.projectId);
+            
+            return `
+                <div class="task-card glass-effect rounded-lg p-4 ${priorityClass}" 
+                     draggable="true" 
+                     data-task-id="${task.id}"
+                     ondragstart="handleDragStart(event)"
+                     ondragend="handleDragEnd(event)">
+                    <div class="flex items-start justify-between mb-3">
+                        <h4 class="font-medium text-sm">${task.title}</h4>
+                        <button onclick="deleteTask('${task.id}')" class="text-gray-400 hover:text-red-400 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    ${project ? `<p class="text-xs text-gray-400 mb-2">${project.name}</p>` : ''}
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs px-2 py-1 rounded-full ${getPriorityClass(task.priority)}">${getPriorityText(task.priority)}</span>
+                        <span class="text-xs text-gray-400">${formatDate(task.dueDate)}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        function loadTaskList() {
+            const tasks = JSON.parse(localStorage.getItem('tasks') || '[]');
+            const tbody = document.getElementById('taskList');
+            
+            tbody.innerHTML = tasks.map(task => {
+                const project = getProjectById(task.projectId);
+                return `
+                    <tr class="hover:bg-white/5">
+                        <td class="px-6 py-4">
+                            <div>
+                                <div class="font-medium">${task.title}</div>
+                                ${project ? `<div class="text-sm text-gray-400">${project.name}</div>` : ''}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="inline-flex px-2 py-1 text-xs rounded-full ${getStatusClass(task.status)}">${getStatusText(task.status)}</span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="inline-flex px-2 py-1 text-xs rounded-full ${getPriorityClass(task.priority)}">${getPriorityText(task.priority)}</span>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-400">${formatDate(task.dueDate)}</td>
+                        <td class="px-6 py-4">
+                            <button onclick="deleteTask('${task.id}')" class="text-red-400 hover:text-red-300 transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function getProjectById(id) {
+            if (!id) return null;
+            const projects = JSON.parse(localStorage.getItem('projects') || '[]');
+            return projects.find(p => p.id === id);
+        }
+
+        function getStatusClass(status) {
+            const classes = {
+                todo: 'bg-gray-500/20 text-gray-300',
+                inprogress: 'bg-orange-500/20 text-orange-400',
+                done: 'bg-green-500/20 text-green-400'
+            };
+            return classes[status] || classes.todo;
+        }
+
+        function getStatusText(status) {
+            const texts = {
+                todo: '待办',
+                inprogress: '进行中',
+                done: '已完成'
+            };
+            return texts[status] || '待办';
+        }
+
+        function getPriorityClass(priority) {
+            const classes = {
+                low: 'bg-green-500/20 text-green-400',
+                medium: 'bg-orange-500/20 text-orange-400',
+                high: 'bg-red-500/20 text-red-400'
+            };
+            return classes[priority] || classes.medium;
+        }
+
+        function getPriorityText(priority) {
+            const texts = {
+                low: '低',
+                medium: '中',
+                high: '高'
+            };
+            return texts[priority] || '中';
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return '无截止日期';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('zh-CN');
+        }
+
+        function initializeDragAndDrop() {
+            const columns = document.querySelectorAll('.kanban-column');
+            
+            columns.forEach(column => {
+                column.addEventListener('dragover', handleDragOver);
+                column.addEventListener('drop', handleDrop);
+                column.addEventListener('dragenter', handleDragEnter);
+                column.addEventListener('dragleave', handleDragLeave);
+            });
+        }
+
+        function handleDragStart(e) {
+            draggedTask = e.target.dataset.taskId;
+            e.target.classList.add('dragging');
+        }
+
+        function handleDragEnd(e) {
+            e.target.classList.remove('dragging');
+            draggedTask = null;
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+        }
+
+        function handleDragEnter(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('drag-over');
+        }
+
+        function handleDragLeave(e) {
+            if (!e.currentTarget.contains(e.relatedTarget)) {
+                e.currentTarget.classList.remove('drag-over');
+            }
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+            
+            if (draggedTask) {
+                const newStatus = e.currentTarget.dataset.status;
+                updateTaskStatus(draggedTask, newStatus);
+            }
+        }
+
+        function updateTaskStatus(taskId, newStatus) {
+            const tasks = JSON.parse(localStorage.getItem('tasks') || '[]');
+            const taskIndex = tasks.findIndex(t => t.id === taskId);
+            
+            if (taskIndex !== -1) {
+                tasks[taskIndex].status = newStatus;
+                localStorage.setItem('tasks', JSON.stringify(tasks));
+                loadTasks();
+                updateStats();
+                showNotification('任务状态已更新');
+            }
+        }
+
+        function deleteTask(taskId) {
+            if (confirm('确定要删除这个任务吗？')) {
+                const tasks = JSON.parse(localStorage.getItem('tasks') || '[]');
+                const filteredTasks = tasks.filter(t => t.id !== taskId);
+                localStorage.setItem('tasks', JSON.stringify(filteredTasks));
+                
+                loadTasks();
+                if (currentView === 'list') {
+                    loadTaskList();
+                }
+                updateStats();
+                showNotification('任务已删除');
+            }
+        }
+
+        function updateStats() {
+            const projects = JSON.parse(localStorage.getItem('projects') || '[]');
+            const tasks = JSON.parse(localStorage.getItem('tasks') || '[]');
+            
+            document.getElementById('totalProjects').textContent = projects.length;
+            document.getElementById('activeProjects').textContent = projects.filter(p => p.status === 'active').length;
+            document.getElementById('completedProjects').textContent = projects.filter(p => p.status === 'completed').length;
+            document.getElementById('totalTasks').textContent = tasks.length;
+        }
+
+        // Project form submission
+        document.getElementById('projectForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const name = document.getElementById('projectName').value;
+            const description = document.getElementById('projectDescription').value;
+            const dueDate = document.getElementById('projectDueDate').value;
+            
+            if (!name.trim()) return;
+            
+            const project = {
+                id: Date.now().toString(),
+                name: name.trim(),
+                description: description.trim(),
+                dueDate: dueDate,
+                status: 'active',
+                createdAt: new Date().toISOString()
+            };
+            
+            const projects = JSON.parse(localStorage.getItem('projects') || '[]');
+            projects.push(project);
+            localStorage.setItem('projects', JSON.stringify(projects));
+            
+            this.reset();
+            hideModal('projectModal');
+            updateStats();
+            loadProjectsForTask();
+            showNotification('项目创建成功！');
+        });
+
+        // Task form submission
+        document.getElementById('taskForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const title = document.getElementById('taskTitle').value;
+            const projectId = document.getElementById('taskProject').value;
+            const priority = document.getElementById('taskPriority').value;
+            const dueDate = document.getElementById('taskDueDate').value;
+            
+            if (!title.trim()) return;
+            
+            const task = {
+                id: Date.now().toString(),
+                title: title.trim(),
+                projectId: projectId,
+                priority: priority,
+                dueDate: dueDate || new Date().toISOString().split('T')[0],
+                status: 'todo',
+                createdAt: new Date().toISOString()
+            };
+            
+            const tasks = JSON.parse(localStorage.getItem('tasks') || '[]');
+            tasks.push(task);
+            localStorage.setItem('tasks', JSON.stringify(tasks));
+            
+            this.reset();
+            hideModal('taskModal');
+            loadTasks();
+            if (currentView === 'list') {
+                loadTaskList();
+            }
+            updateStats();
+            showNotification('任务创建成功！');
+        });
+
+        // Modal functions
+        function showModal(modalId) {
+            document.getElementById(modalId).classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function hideModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }
+
+        // Initialize sample data
+        if (!localStorage.getItem('tasks')) {
+            const sampleTasks = [
+                {
+                    id: '1',
+                    title: '设计新的用户界面',
+                    projectId: '',
+                    priority: 'high',
+                    dueDate: '2024-11-22',
+                    status: 'todo',
+                    createdAt: new Date().toISOString()
+                },
+                {
+                    id: '2',
+                    title: '开发登录功能',
+                    projectId: '',
+                    priority: 'medium',
+                    dueDate: '2024-11-25',
+                    status: 'inprogress',
+                    createdAt: new Date().toISOString()
+                },
+                {
+                    id: '3',
+                    title: '编写项目文档',
+                    projectId: '',
+                    priority: 'low',
+                    dueDate: '2024-11-30',
+                    status: 'done',
+                    createdAt: new Date().toISOString()
+                }
+            ];
+            localStorage.setItem('tasks', JSON.stringify(sampleTasks));
+        }
+
+        function showNotification(message) {
+            const notification = document.createElement('div');
+            notification.className = 'fixed top-20 right-4 bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 transform translate-x-full transition-transform';
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.classList.remove('translate-x-full');
+            }, 100);
+            
+            setTimeout(() => {
+                notification.classList.add('translate-x-full');
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

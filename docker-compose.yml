@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  workflow-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: workflow-app
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    volumes:
+      - ./logs:/var/log/nginx
+    environment:
+      - NGINX_HOST=localhost
+      - NGINX_PORT=80
+    networks:
+      - workflow-network
+
+  # Optional: Add a reverse proxy for production deployment
+  nginx-proxy:
+    image: nginx:alpine
+    container_name: workflow-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx-proxy.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - workflow-app
+    networks:
+      - workflow-network
+    restart: unless-stopped
+    profiles:
+      - production
+
+networks:
+  workflow-network:
+    driver: bridge
+
+volumes:
+  workflow-logs:
+    driver: local
